@@ -13,6 +13,7 @@ const mergeBtn = document.getElementById("mergeBtn");
 const mergeStatusEl = document.getElementById("mergeStatus");
 
 const authInfoEl = document.getElementById("authInfo");
+const googleLoginBtn = document.getElementById("googleLoginBtn");
 const googleButtonWrapEl = document.getElementById("googleButtonWrap");
 const googleLoginButtonEl = document.getElementById("googleLoginButton");
 const logoutBtn = document.getElementById("logoutBtn");
@@ -45,6 +46,7 @@ let latestStoryText = "";
 let latestStorySourceType = "unknown";
 let latestStoryContext = null;
 let isChatBusy = false;
+let googleIdentityReady = false;
 
 proactiveToggle.checked = proactiveEnabled;
 
@@ -186,6 +188,40 @@ modelSelect.addEventListener("change", async () => {
   refreshChatControls();
 });
 
+googleLoginBtn.addEventListener("click", async () => {
+  if (authState.authenticated) {
+    return;
+  }
+
+  if (!authState.googleClientId) {
+    showStatus(chatStatusEl, "Google login is not configured yet. Set GOOGLE_CLIENT_ID in Vercel env.", "error");
+    return;
+  }
+
+  const ready = ensureGoogleIdentityReady();
+  if (!ready) {
+    showStatus(chatStatusEl, "Google script is still loading. Try again in 1-2 seconds.", "info");
+    return;
+  }
+
+  googleButtonWrapEl.style.display = "none";
+  window.google.accounts.id.prompt((notification) => {
+    if (!notification) {
+      return;
+    }
+
+    if (
+      notification.isNotDisplayed() ||
+      notification.isSkippedMoment() ||
+      notification.isDismissedMoment()
+    ) {
+      googleButtonWrapEl.style.display = "block";
+      renderGoogleLoginButton();
+      showStatus(chatStatusEl, "Popup was blocked or skipped. Click the Google button shown below.", "info");
+    }
+  });
+});
+
 logoutBtn.addEventListener("click", async () => {
   try {
     await fetchJson("/api/auth/logout", { method: "POST" });
@@ -253,36 +289,35 @@ async function refreshSession() {
 function updateAuthUI() {
   if (authState.authenticated && authState.user) {
     authInfoEl.textContent = "Logged in as " + (authState.user.name || "User");
+    googleLoginBtn.style.display = "none";
     googleButtonWrapEl.style.display = "none";
     logoutBtn.disabled = false;
     return;
   }
 
+  googleLoginBtn.style.display = "inline-block";
+  googleLoginBtn.disabled = false;
   authInfoEl.textContent = authState.googleClientId
     ? "Not logged in. Use Google sign-in to enable Story Chat."
     : "Not logged in. Google login is disabled because GOOGLE_CLIENT_ID is not configured on server.";
-  googleButtonWrapEl.style.display = "block";
+  googleButtonWrapEl.style.display = "none";
   logoutBtn.disabled = true;
-  renderGoogleLoginButton();
+
+  if (authState.googleClientId) {
+    renderGoogleLoginButton();
+  }
 }
 
 function renderGoogleLoginButton() {
   googleLoginButtonEl.innerHTML = "";
   if (!authState.googleClientId) {
-    googleLoginButtonEl.textContent = "Google OAuth unavailable (missing GOOGLE_CLIENT_ID).";
     return;
   }
 
-  if (!window.google || !window.google.accounts || !window.google.accounts.id) {
+  if (!ensureGoogleIdentityReady()) {
     setTimeout(renderGoogleLoginButton, 250);
     return;
   }
-
-  window.google.accounts.id.initialize({
-    client_id: authState.googleClientId,
-    callback: handleGoogleCredentialResponse,
-    ux_mode: "popup"
-  });
 
   window.google.accounts.id.renderButton(googleLoginButtonEl, {
     theme: "outline",
@@ -290,6 +325,27 @@ function renderGoogleLoginButton() {
     text: "signin_with",
     shape: "pill"
   });
+}
+
+function ensureGoogleIdentityReady() {
+  if (!authState.googleClientId) {
+    return false;
+  }
+
+  if (!window.google || !window.google.accounts || !window.google.accounts.id) {
+    return false;
+  }
+
+  if (!googleIdentityReady) {
+    window.google.accounts.id.initialize({
+      client_id: authState.googleClientId,
+      callback: handleGoogleCredentialResponse,
+      ux_mode: "popup"
+    });
+    googleIdentityReady = true;
+  }
+
+  return true;
 }
 
 async function handleGoogleCredentialResponse(response) {
