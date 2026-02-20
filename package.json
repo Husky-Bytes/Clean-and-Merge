@@ -1,0 +1,11 @@
+{
+  "name": "story-cleaner-chat-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "dependencies": {
+    "google-auth-library": "^9.15.0",
+    "jsonwebtoken": "^9.0.2",
+    "openai": "^4.103.0"
+  }
+}
