@@ -9,7 +9,12 @@ const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 let oauthClient = null;
 
 function getGoogleClientId() {
-  return process.env.GOOGLE_CLIENT_ID || "";
+  return (
+    process.env.GOOGLE_CLIENT_ID ||
+    process.env.GOOGLE_OAUTH_CLIENT_ID ||
+    process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
+    ""
+  );
 }
 
 function requireSessionSecret() {

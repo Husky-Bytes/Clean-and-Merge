@@ -258,7 +258,9 @@ function updateAuthUI() {
     return;
   }
 
-  authInfoEl.textContent = "Not logged in. Use Google sign-in to enable Story Chat.";
+  authInfoEl.textContent = authState.googleClientId
+    ? "Not logged in. Use Google sign-in to enable Story Chat."
+    : "Not logged in. Google login is disabled because GOOGLE_CLIENT_ID is not configured on server.";
   googleButtonWrapEl.style.display = "block";
   logoutBtn.disabled = true;
   renderGoogleLoginButton();
@@ -267,6 +269,7 @@ function updateAuthUI() {
 function renderGoogleLoginButton() {
   googleLoginButtonEl.innerHTML = "";
   if (!authState.googleClientId) {
+    googleLoginButtonEl.textContent = "Google OAuth unavailable (missing GOOGLE_CLIENT_ID).";
     return;
   }
 
