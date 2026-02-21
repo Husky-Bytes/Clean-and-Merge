@@ -196,6 +196,7 @@
       padding: 0 6px;
     }
 
+    input[type="text"],
     select,
     textarea {
       width: 100%;
@@ -410,6 +411,15 @@
           <div id="googleLoginButton"></div>
         </div>
         <button id="logoutBtn" class="secondary" type="button" disabled>Logout</button>
+      </div>
+
+      <div class="controls">
+        <label class="inline-field" for="googleClientIdInput">
+          Google Client ID
+          <input id="googleClientIdInput" type="text" placeholder="xxxxxx.apps.googleusercontent.com">
+        </label>
+        <button id="saveGoogleClientIdBtn" class="secondary" type="button">Save ID</button>
+        <button id="clearGoogleClientIdBtn" class="secondary" type="button">Clear ID</button>
       </div>
 
       <div class="controls">

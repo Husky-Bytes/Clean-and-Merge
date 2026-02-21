@@ -1,5 +1,6 @@
 "use strict";
 
+const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const { OAuth2Client } = require("google-auth-library");
 
@@ -18,35 +19,36 @@ function getGoogleClientId() {
 }
 
 function requireSessionSecret() {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret) {
-    throw new Error("Missing SESSION_SECRET.");
+  if (process.env.SESSION_SECRET) {
+    return process.env.SESSION_SECRET;
   }
 
-  return secret;
+  // Fallback for simple single-site deploys where SESSION_SECRET is not set.
+  const seed = process.env.OPENAI_API_KEY || "story-chat-insecure-fallback";
+  return crypto.createHash("sha256").update(seed, "utf8").digest("hex");
 }
 
 function getOAuthClient() {
-  const clientId = getGoogleClientId();
-  if (!clientId) {
-    throw new Error("Missing GOOGLE_CLIENT_ID.");
-  }
-
   if (!oauthClient) {
-    oauthClient = new OAuth2Client(clientId);
+    oauthClient = new OAuth2Client();
   }
 
   return oauthClient;
 }
 
-async function verifyGoogleCredential(credential) {
+async function verifyGoogleCredential(credential, clientIdFromRequest) {
   if (!credential || typeof credential !== "string") {
     throw new Error("Missing Google credential.");
   }
 
+  const audience = resolveGoogleAudience(clientIdFromRequest);
+  if (!audience) {
+    throw new Error("Missing GOOGLE_CLIENT_ID.");
+  }
+
   const ticket = await getOAuthClient().verifyIdToken({
     idToken: credential,
-    audience: getGoogleClientId()
+    audience
   });
 
   const payload = ticket.getPayload();
@@ -100,10 +102,7 @@ function clearSessionCookie(req, res) {
 }
 
 function getSessionFromRequest(req) {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret) {
-    return null;
-  }
+  const secret = requireSessionSecret();
 
   const cookies = parseCookies(req);
   const token = cookies[SESSION_COOKIE_NAME];
@@ -126,6 +125,15 @@ function getSessionFromRequest(req) {
   } catch (_error) {
     return null;
   }
+}
+
+function resolveGoogleAudience(clientIdFromRequest) {
+  const requestValue = typeof clientIdFromRequest === "string" ? clientIdFromRequest.trim() : "";
+  if (requestValue) {
+    return requestValue;
+  }
+
+  return getGoogleClientId();
 }
 
 function parseCookies(req) {

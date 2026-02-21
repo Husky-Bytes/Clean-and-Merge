@@ -1,6 +1,6 @@
 "use strict";
 
-const { setSessionCookie, verifyGoogleCredential } = require("../_lib/auth");
+const { getGoogleClientId, setSessionCookie, verifyGoogleCredential } = require("../_lib/auth");
 const { methodNotAllowed, parseJsonBody, sendError, sendJson } = require("../_lib/http");
 
 module.exports = async function handler(req, res) {
@@ -11,11 +11,16 @@ module.exports = async function handler(req, res) {
   try {
     const body = await parseJsonBody(req);
     const credential = body && body.credential;
+    const clientId = body && typeof body.clientId === "string" ? body.clientId.trim() : "";
     if (!credential || typeof credential !== "string") {
       return sendError(res, 400, "Missing Google credential.");
     }
 
-    const user = await verifyGoogleCredential(credential);
+    if (!clientId && !getGoogleClientId()) {
+      return sendError(res, 400, "Missing Google Client ID. Save it in Story Chat first.");
+    }
+
+    const user = await verifyGoogleCredential(credential, clientId);
     setSessionCookie(req, res, user);
     return sendJson(res, 200, { ok: true, user });
   } catch (error) {
@@ -30,5 +35,5 @@ module.exports = async function handler(req, res) {
 
 function isConfigError(error) {
   const message = error && error.message ? error.message : "";
-  return message.includes("GOOGLE_CLIENT_ID") || message.includes("SESSION_SECRET");
+  return message.includes("SESSION_SECRET");
 }
