@@ -16,9 +16,6 @@ const authInfoEl = document.getElementById("authInfo");
 const googleLoginBtn = document.getElementById("googleLoginBtn");
 const googleButtonWrapEl = document.getElementById("googleButtonWrap");
 const googleLoginButtonEl = document.getElementById("googleLoginButton");
-const googleClientIdInput = document.getElementById("googleClientIdInput");
-const saveGoogleClientIdBtn = document.getElementById("saveGoogleClientIdBtn");
-const clearGoogleClientIdBtn = document.getElementById("clearGoogleClientIdBtn");
 const logoutBtn = document.getElementById("logoutBtn");
 const modelSelect = document.getElementById("modelSelect");
 const proactiveToggle = document.getElementById("proactiveToggle");
@@ -31,7 +28,6 @@ const chatStatusEl = document.getElementById("chatStatus");
 
 const PROACTIVE_STORAGE_KEY = "story_chat_proactive_enabled";
 const MODEL_STORAGE_KEY = "story_chat_selected_model";
-const GOOGLE_CLIENT_ID_STORAGE_KEY = "story_chat_google_client_id";
 
 let cleanFile = null;
 let mergeFirstFile = null;
@@ -40,8 +36,7 @@ let mergeSecondFile = null;
 let authState = {
   authenticated: false,
   user: null,
-  googleClientId: "",
-  serverGoogleClientId: ""
+  googleClientId: ""
 };
 
 let selectedModel = "";
@@ -193,39 +188,13 @@ modelSelect.addEventListener("change", async () => {
   refreshChatControls();
 });
 
-saveGoogleClientIdBtn.addEventListener("click", () => {
-  const manualClientId = (googleClientIdInput.value || "").trim();
-  if (!manualClientId) {
-    showStatus(chatStatusEl, "Enter Google Client ID first.", "error");
-    return;
-  }
-
-  localStorage.setItem(GOOGLE_CLIENT_ID_STORAGE_KEY, manualClientId);
-  authState.googleClientId = getEffectiveGoogleClientId(authState.serverGoogleClientId);
-  googleClientIdInput.value = authState.googleClientId;
-  googleIdentityReady = false;
-  updateAuthUI();
-  refreshChatControls();
-  showStatus(chatStatusEl, "Google Client ID saved in this browser.", "success");
-});
-
-clearGoogleClientIdBtn.addEventListener("click", () => {
-  localStorage.removeItem(GOOGLE_CLIENT_ID_STORAGE_KEY);
-  authState.googleClientId = getEffectiveGoogleClientId(authState.serverGoogleClientId);
-  googleClientIdInput.value = authState.googleClientId;
-  googleIdentityReady = false;
-  updateAuthUI();
-  refreshChatControls();
-  showStatus(chatStatusEl, "Saved Google Client ID was cleared.", "info");
-});
-
 googleLoginBtn.addEventListener("click", async () => {
   if (authState.authenticated) {
     return;
   }
 
   if (!authState.googleClientId) {
-    showStatus(chatStatusEl, "Save Google Client ID in this page first, then try login.", "error");
+    showStatus(chatStatusEl, "Google login is not configured yet. Set GOOGLE_CLIENT_ID in Vercel env.", "error");
     return;
   }
 
@@ -294,7 +263,6 @@ clearChatBtn.addEventListener("click", async () => {
 async function initializePage() {
   renderChatMessages();
   refreshChatControls();
-  googleClientIdInput.value = getStoredGoogleClientId();
   updateContextBanner("먼저 Clean/Merge를 실행해서 문맥을 준비해 주세요.", "info");
 
   await refreshSession();
@@ -307,16 +275,12 @@ async function refreshSession() {
     const data = await fetchJson("/api/auth/session", { method: "GET" });
     authState.authenticated = Boolean(data.authenticated);
     authState.user = data.user || null;
-    authState.serverGoogleClientId = typeof data.googleClientId === "string" ? data.googleClientId.trim() : "";
-    authState.googleClientId = getEffectiveGoogleClientId(authState.serverGoogleClientId);
+    authState.googleClientId = typeof data.googleClientId === "string" ? data.googleClientId : "";
   } catch (_error) {
     authState.authenticated = false;
     authState.user = null;
-    authState.serverGoogleClientId = "";
-    authState.googleClientId = getEffectiveGoogleClientId("");
+    authState.googleClientId = "";
   }
-
-  googleClientIdInput.value = authState.googleClientId;
 
   updateAuthUI();
   refreshChatControls();
@@ -332,10 +296,10 @@ function updateAuthUI() {
   }
 
   googleLoginBtn.style.display = "inline-block";
-  googleLoginBtn.disabled = !authState.googleClientId;
+  googleLoginBtn.disabled = false;
   authInfoEl.textContent = authState.googleClientId
     ? "Not logged in. Use Google sign-in to enable Story Chat."
-    : "Not logged in. Save Google Client ID above, then login.";
+    : "Not logged in. Google login is disabled because GOOGLE_CLIENT_ID is not configured on server.";
   googleButtonWrapEl.style.display = "none";
   logoutBtn.disabled = true;
 
@@ -392,8 +356,7 @@ async function handleGoogleCredentialResponse(response) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        credential: response.credential,
-        clientId: authState.googleClientId
+        credential: response.credential
       })
     });
 
@@ -679,19 +642,6 @@ function readBoolFromStorage(key, fallback) {
     return false;
   }
   return fallback;
-}
-
-function getStoredGoogleClientId() {
-  return (localStorage.getItem(GOOGLE_CLIENT_ID_STORAGE_KEY) || "").trim();
-}
-
-function getEffectiveGoogleClientId(serverGoogleClientId) {
-  const serverValue = typeof serverGoogleClientId === "string" ? serverGoogleClientId.trim() : "";
-  if (serverValue) {
-    return serverValue;
-  }
-
-  return getStoredGoogleClientId();
 }
 
 function formatTime(ts) {
